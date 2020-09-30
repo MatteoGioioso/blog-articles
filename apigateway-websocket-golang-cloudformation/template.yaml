@@ -1,0 +1,125 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  web-api
+
+  Sample SAM Template for web-api
+
+Parameters:
+  Environment:
+    Type: String
+    AllowedValues:
+      - production
+      - staging
+      - development
+    ConstraintDescription: invalid environment, only [production, staging, development] are allowed
+  Appname:
+    Type: String
+
+Globals:
+  Function:
+    Tracing: Active
+    Timeout: 30
+    Runtime: go1.x
+    MemorySize: 128
+    Environment:
+      Variables:
+        GO_ENV: !Ref Environment
+
+Resources:
+
+  # WEB-SOCKET ========================================
+  WebSocket:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      ProtocolType: WEBSOCKET
+      RouteSelectionExpression: "$request.body.action"
+      Name: !Sub ${Appname}-${Environment}
+
+  WebSocketStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      StageName: !Ref Environment
+      AutoDeploy: true
+      ApiId: !Ref WebSocket
+
+  ConnectRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref WebSocket
+      RouteKey: "$connect"
+      AuthorizationType: NONE
+      Target: !Join
+        - '/'
+        - - 'integrations'
+          - !Ref ConnectRouteIntegration
+
+  ConnectRouteIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref WebSocket
+      IntegrationType: AWS_PROXY
+      IntegrationUri:
+        Fn::Sub:
+          arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${onConnectWebsocket.Arn}/invocations
+
+  CustomRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref WebSocket
+      RouteKey: customroute
+      AuthorizationType: NONE
+      OperationName: CustomRoute
+      Target: !Join
+        - '/'
+        - - 'integrations'
+          - !Ref CustomRouteIntegration
+
+  CustomRouteIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref WebSocket
+      Description: Send Integration
+      IntegrationType: AWS_PROXY
+      IntegrationUri:
+        Fn::Sub:
+          arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${customRoute.Arn}/invocations
+
+  CustomRouteFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - Statement:
+            - Effect: Allow
+              Action:
+                - execute-api:ManageConnections
+              Resource:
+                - !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocket}/*
+      CodeUri: bin/
+      Handler: customRoute
+      Environment:
+        Variables:
+          API_GATEWAY_ID: !Ref WebSocket
+
+  CustomRoutePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref CustomRouteFunction
+      Principal: apigateway.amazonaws.com
+
+  onConnectWebsocket:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: bin/
+      Handler: onConnectWebsocket
+      Policies:
+        - AWSLambdaBasicExecutionRole
+
+  OnConnectPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref onConnectWebsocket
+      Principal: apigateway.amazonaws.com
