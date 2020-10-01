@@ -1,0 +1,42 @@
+
+# Three way hand shake =============
+IP localhost.52301 > localhost.postgresql: Flags [S], seq 134518692, win 65535, options [mss 16344,nop,wscale 6,nop,nop,TS val 1551376312 ecr 0,sackOK,eol], length 0
+IP localhost.postgresql > localhost.52301: Flags [S.], seq 4234473911, ack 134518693, win 65535, options [mss 16344,nop,wscale 6,nop,nop,TS val 1551376312 ecr 1551376312,sackOK,eol], length 0
+IP localhost.52301 > localhost.postgresql: Flags [.], ack 1, win 6379, options [nop,nop,TS val 1551376312 ecr 1551376312], length 0
+IP localhost.postgresql > localhost.52301: Flags [.], ack 1, win 6379, options [nop,nop,TS val 1551376312 ecr 1551376312], length 0
+
+
+# Startup message request =============
+IP localhost.52301 > localhost.postgresql: Flags [P.], seq 1:38, ack 1, win 6379, options [nop,nop,TS val 1551376313 ecr 1551376312], length 37
+IP localhost.postgresql > localhost.52301: Flags [.], ack 38, win 6379, options [nop,nop,TS val 1551376313 ecr 1551376313], length 0
+
+# Startup message response =============
+IP localhost.postgresql > localhost.52301: Flags [P.], seq 1:14, ack 38, win 6379, options [nop,nop,TS val 1551376336 ecr 1551376313], length 13
+IP localhost.52301 > localhost.postgresql: Flags [.], ack 14, win 6379, options [nop,nop,TS val 1551376336 ecr 1551376336], length 0
+
+
+# Authentication message request =============
+IP localhost.52301 > localhost.postgresql: Flags [P.], seq 38:79, ack 14, win 6379, options [nop,nop,TS val 1551376336 ecr 1551376336], length 41
+IP localhost.postgresql > localhost.52301: Flags [.], ack 79, win 6378, options [nop,nop,TS val 1551376336 ecr 1551376336], length 0
+
+# Authentication message response =============
+IP localhost.postgresql > localhost.52301: Flags [P.], seq 14:361, ack 79, win 6378, options [nop,nop,TS val 1551376361 ecr 1551376336], length 347
+IP localhost.52301 > localhost.postgresql: Flags [.], ack 361, win 6374, options [nop,nop,TS val 1551376361 ecr 1551376361], length 0
+
+
+# Query message request =============
+IP localhost.52301 > localhost.postgresql: Flags [P.], seq 79:105, ack 361, win 6374, options [nop,nop,TS val 1551376361 ecr 1551376361], length 26
+IP localhost.postgresql > localhost.52301: Flags [.], ack 105, win 6378, options [nop,nop,TS val 1551376361 ecr 1551376361], length 0
+
+## Query message response =============
+IP localhost.postgresql > localhost.52301: Flags [P.], seq 361:744, ack 105, win 6378, options [nop,nop,TS val 1551376380 ecr 1551376361], length 383
+IP localhost.52301 > localhost.postgresql: Flags [.], ack 744, win 6368, options [nop,nop,TS val 1551376380 ecr 1551376380], length 0
+
+
+## Close connection request =============
+IP localhost.52301 > localhost.postgresql: Flags [F.], seq 105, ack 744, win 6368, options [nop,nop,TS val 1551376380 ecr 1551376380], length 0
+IP localhost.postgresql > localhost.52301: Flags [.], ack 106, win 6378, options [nop,nop,TS val 1551376380 ecr 1551376380], length 0
+
+## Close connection response =============
+IP localhost.postgresql > localhost.52301: Flags [F.], seq 744, ack 106, win 6378, options [nop,nop,TS val 1551376385 ecr 1551376380], length 0
+IP localhost.52301 > localhost.postgresql: Flags [.], ack 745, win 6368, options [nop,nop,TS val 1551376385 ecr 1551376385], length 0

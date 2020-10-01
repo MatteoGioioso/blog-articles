@@ -35,9 +35,11 @@ func HexMD5(s string) string {
 	return hex.EncodeToString(hash.Sum(nil))
 }
 
-
 // Very raw type conversion, in reality there are a lot more types,
-// but for this scope this is going to be enough
+// but for this scope this is going to be enough.
+// PostgreSQL has a type table called pg_type (SELECT oid, typname FROM pg_type).
+// The driver uses the knowledge about OIDs to figure out how to map data from database column types into primitive Go types.
+// For this purpose, pgx internally uses the following map (key — type name, value — Object ID)
 func GetGoType(typeOid uint32) string {
 	switch typeOid {
 	case 23:
@@ -94,4 +96,16 @@ func GetUint16Value(buff []byte, index *int) (value uint16) {
 	newIndex := *index + Int16ByteLen
 	*index = newIndex
 	return
+}
+
+func GetStringValue(buff []byte, length uint32, index *int) (value string) {
+	value = string(buff[*index : *index+int(length)])
+	*index = *index + int(length)
+	return value
+}
+
+func GetASCIIIdentifier(buff []byte, index *int) (id string) {
+	id = string(buff[*index])
+	*index = *index + 1
+	return id
 }

@@ -19,10 +19,10 @@ func makeStartupMessageRaw() []byte {
 	// not 100% sure why is -1, it just creates 255, 255, 255
 	buff = pgio.AppendInt32(buff, -1)
 
-	//Attach protocol version
+	// Attach protocol version translated in bytes (3.0)
 	buff = pgio.AppendUint32(buff, 196608)
 
-	// Attach params
+	// Attach params, each key and value are separated by a 0 byte
 	buff = append(buff, "user"...)
 	buff = append(buff, 0)
 	buff = append(buff, utils.User...)
@@ -33,7 +33,7 @@ func makeStartupMessageRaw() []byte {
 	buff = append(buff, 0)
 	buff = append(buff, 0)
 
-	// Append at the beginning of the buffer the total length of the message
+	// Calculate and append at the beginning of the buffer the total length of the message
 	lengthOfTheMessage := int32(len(buff[sp:]))
 	pgio.SetInt32(buff[sp:], lengthOfTheMessage)
 
@@ -44,18 +44,18 @@ func decodeStartupResponse(buff []byte) []byte {
 	// first byte is the identifier char in this case R
 	identifierChar := string(buff[0])
 	fmt.Println("Id char: ", identifierChar)
-
+	index := 1
 	// the second part is a 4 byte which represent the length of your message
-	length := binary.BigEndian.Uint32(buff[1:5])
+	length := utils.GetUint32Value(buff, &index)
 	fmt.Println("length:", length)
 
 	// this part is again a 4 byte integer which represent the auth method
 	// in this case is going to be md5
-	authMethod := binary.BigEndian.Uint32(buff[5:9])
+	authMethod := utils.GetUint32Value(buff, &index)
 	fmt.Println("auth method: ", authMethod)
 
 	// this part is a 4 byte salt to encrypt the postgres credentials
-	salt := buff[9:13]
+	salt := buff[index:index+4]
 	fmt.Println("salt: ", salt)
 	fmt.Println("----------------------")
 	return salt
@@ -93,7 +93,7 @@ func decodeAuthMessage(buff []byte) uint32 {
 
 	// last byte, if 0 means success
 	authResult := binary.BigEndian.Uint32(buff[5:9])
-	fmt.Println("auth method: ", authResult)
+	fmt.Println("auth result: ", authResult)
 
 	// This loop iterate over all the parameters in the message
 	// there are quite many of them (11) so I have decided to extract them programmatically
@@ -151,12 +151,16 @@ func makeQueryMessage() []byte {
 type Field struct {
 	Data string
 	Type string
+	Name string
 }
 type Row []Field
 type Rows []Row
 
 func getQueryResponse(buff []byte) Rows {
 	rows := make(Rows, 0)
+	types := make([]string, 0)
+	names := make([]string, 0)
+	
 	ASCIIId := string(buff[0])
 	// This char should be "T"
 	fmt.Println("query result id: ", ASCIIId)
@@ -165,19 +169,22 @@ func getQueryResponse(buff []byte) Rows {
 	fmt.Println("length of message: ", length)
 
 	numOfFields := utils.GetUint16Value(buff, &index)
+	
 	count := numOfFields
 	// Decode table header (column name, type, ...)
 	for {
 		columnName := utils.GetColumnName(buff[index:])
+		names = append(names, columnName)
 		index = len(columnName) + index + 1 // At the end of each column name there is a 0 byte
 		
-		// We skip tableOid and column number, not needed for this demostration
+		// We skip tableOid and column number, not needed for this demonstration
 		index = index + utils.Int32ByteLen + utils.Int16ByteLen
 		typeOid := utils.GetUint32Value(buff, &index)
 		goType := utils.GetGoType(typeOid)
 		fmt.Println("type: ", goType)
+		types = append(types, goType)
 		
-		// We skip typeLength, typeMod, and format,
+		// We skip typeLength, typeMod, and format (text of binary)
 		// not need those values for this purpose but you can see the specifications
 		index = index + utils.Int16ByteLen + utils.Int32ByteLen + utils.Int16ByteLen
 
@@ -207,20 +214,30 @@ func getQueryResponse(buff []byte) Rows {
 			fieldLength := utils.GetUint32Value(buff, &index)
 			
 			// Finally the actual column data for the current row
-			data := string(buff[index : index+int(fieldLength)])
-
+			data := utils.GetStringValue(buff, fieldLength, &index)
 			row := make(Row, 0)
-			row = append(row, Field{Data: data})
+			row = append(row, Field{
+				Data: data,
+				Type: types[numOfFields-count],
+				Name: names[numOfFields-count],
+			})
 			rows = append(rows, row)
-
-			index = index + int(fieldLength)
+			
 			count--
 			if count <= 0 {
 				break
 			}
 		}
 	}
-
+	
+	commandComplete := utils.GetASCIIIdentifier(buff, &index)
+	fmt.Println("Command complete: ", commandComplete)
+	
+	commandCompleteLength := utils.GetUint32Value(buff, &index)
+	fmt.Println("length: ", commandCompleteLength)
+	
+	value := utils.GetStringValue(buff, commandCompleteLength-4, &index)
+	fmt.Println(value)
 	return rows
 }
 
