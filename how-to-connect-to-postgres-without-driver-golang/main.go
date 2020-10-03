@@ -55,7 +55,7 @@ func decodeStartupResponse(buff []byte) []byte {
 	fmt.Println("auth method: ", authMethod)
 
 	// this part is a 4 byte salt to encrypt the postgres credentials
-	salt := buff[index:index+4]
+	salt := buff[index : index+4]
 	fmt.Println("salt: ", salt)
 	fmt.Println("----------------------")
 	return salt
@@ -136,7 +136,7 @@ func makeQueryMessage() []byte {
 
 	// ASCII identifier
 	buff = append(buff, 'Q')
-	query := "SELECT * FROM users;"
+	query := "SELECT generate_series(1,1000) AS id, md5(random()::text) AS descr;"
 
 	lengthOfTheMessage := int32(4 + len(query) + 1)
 	buff = pgio.AppendInt32(buff, lengthOfTheMessage)
@@ -148,6 +148,10 @@ func makeQueryMessage() []byte {
 	return buff
 }
 
+func makeCloseMessage() []byte  {
+	return []byte{'X', 0, 0, 0, 4}
+}
+
 type Field struct {
 	Data string
 	Type string
@@ -156,11 +160,11 @@ type Field struct {
 type Row []Field
 type Rows []Row
 
-func getQueryResponse(buff []byte) Rows {
+func getQueryResponse(buff []byte, conn net.Conn) Rows {
 	rows := make(Rows, 0)
 	types := make([]string, 0)
 	names := make([]string, 0)
-	
+
 	ASCIIId := string(buff[0])
 	// This char should be "T"
 	fmt.Println("query result id: ", ASCIIId)
@@ -169,21 +173,21 @@ func getQueryResponse(buff []byte) Rows {
 	fmt.Println("length of message: ", length)
 
 	numOfFields := utils.GetUint16Value(buff, &index)
-	
+
 	count := numOfFields
 	// Decode table header (column name, type, ...)
 	for {
 		columnName := utils.GetColumnName(buff[index:])
 		names = append(names, columnName)
 		index = len(columnName) + index + 1 // At the end of each column name there is a 0 byte
-		
+
 		// We skip tableOid and column number, not needed for this demonstration
 		index = index + utils.Int32ByteLen + utils.Int16ByteLen
 		typeOid := utils.GetUint32Value(buff, &index)
+
 		goType := utils.GetGoType(typeOid)
-		fmt.Println("type: ", goType)
 		types = append(types, goType)
-		
+
 		// We skip typeLength, typeMod, and format (text of binary)
 		// not need those values for this purpose but you can see the specifications
 		index = index + utils.Int16ByteLen + utils.Int32ByteLen + utils.Int16ByteLen
@@ -195,8 +199,9 @@ func getQueryResponse(buff []byte) Rows {
 	}
 
 	// Decode each row
+	rowCount := 0
 	for {
-		
+		rowCount++
 		// I am quite sure there is a better way to do this
 		// but basically we stop when the next byte has no more DataRow identifiers "D"
 		if string(buff[index]) != "D" {
@@ -205,14 +210,26 @@ func getQueryResponse(buff []byte) Rows {
 
 		index = index + 1 // jump the identifier
 		length := utils.GetUint32Value(buff, &index)
-		fmt.Println("length: ", length)
+		_ = length
 		numOfFields := utils.GetUint16Value(buff, &index)
+
+		if numOfFields == 0 {
+			reply := make([]byte, 8192)
+			
+			if _, err := conn.Read(reply); err != nil {
+				fmt.Println(err)
+			}
+			
+			buff = buff[:index]
+			buff = append(buff, reply[1:]...)
+			numOfFields = 2
+			//break
+		}
 		
 		// Decode each column in each row
 		count := numOfFields
 		for {
 			fieldLength := utils.GetUint32Value(buff, &index)
-			
 			// Finally the actual column data for the current row
 			data := utils.GetStringValue(buff, fieldLength, &index)
 			row := make(Row, 0)
@@ -229,15 +246,15 @@ func getQueryResponse(buff []byte) Rows {
 			}
 		}
 	}
-	
+
 	commandComplete := utils.GetASCIIIdentifier(buff, &index)
 	fmt.Println("Command complete: ", commandComplete)
-	
 	commandCompleteLength := utils.GetUint32Value(buff, &index)
 	fmt.Println("length: ", commandCompleteLength)
 	
 	value := utils.GetStringValue(buff, commandCompleteLength-4, &index)
 	fmt.Println(value)
+	fmt.Println(rowCount)
 	return rows
 }
 
@@ -273,12 +290,12 @@ func main() {
 	}
 
 	queryMessage := makeQueryMessage()
-	queryReply, err := utils.Execute(conn, queryMessage)
+	queryReply, err := utils.ReadAllBuffer(conn, queryMessage)
 	if err != nil {
 		fmt.Println(err.Error())
 		os.Exit(1)
 	}
 
-	response := getQueryResponse(queryReply)
-	fmt.Printf("%+v\n", response)
+	response := getQueryResponse(queryReply, conn)
+	fmt.Printf("last id fetched: %v\n", response)
 }

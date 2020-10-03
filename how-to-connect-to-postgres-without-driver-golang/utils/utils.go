@@ -4,6 +4,7 @@ import (
 	"crypto/md5"
 	"encoding/binary"
 	"encoding/hex"
+	"fmt"
 	"io"
 	"net"
 )
@@ -42,6 +43,8 @@ func HexMD5(s string) string {
 // For this purpose, pgx internally uses the following map (key — type name, value — Object ID)
 func GetGoType(typeOid uint32) string {
 	switch typeOid {
+	case 25:
+		return "string"
 	case 23:
 		return "int"
 	case 1043:
@@ -70,18 +73,49 @@ func GetColumnName(buff []byte) string {
 }
 
 // Helper function to write on a connection and receive response data from it
-func Execute(conn net.Conn, message []byte) ([]byte, error) {
+func Execute(conn net.Conn, message []byte, opts... int) ([]byte, error) {
 	if _, err := conn.Write(message); err != nil {
 		return nil, err
 	}
+	
+	buffSize := 1024
+	if len(opts) != 0 {
+		buffSize = opts[0]
+	}
 
-	reply := make([]byte, 1024)
+	reply := make([]byte, buffSize)
 
 	if _, err := conn.Read(reply); err != nil {
 		return nil, err
 	}
 
 	return reply, nil
+}
+
+func ReadAllBuffer(conn net.Conn, message []byte) ([]byte, error) {
+	buf := make([]byte, 0, 4096)
+	tmp := make([]byte, 4096)
+	
+	if _, err := conn.Write(message); err != nil {
+		return nil, err
+	}
+	
+	for {
+		n, err := conn.Read(tmp)
+		if err != nil {
+			return nil, err
+		}
+
+		buf = append(buf, tmp[:n]...)
+		fmt.Println(n)
+
+		// Last message is Query idling "I"
+		// Did not find any better method to stop reading from the buffer
+		// till is completed
+		if string(tmp[n-1]) == "I" {
+			return buf, nil
+		}
+	}
 }
 
 func GetUint32Value(buff []byte, index *int) (value uint32) {
