@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
-	"io"
 	"net"
 )
 
@@ -29,11 +28,10 @@ func HasParameter(buff []byte, index int) bool {
 	return false
 }
 
-// Helper function for ...
+// Helper function for hashing our credentials
 func HexMD5(s string) string {
-	hash := md5.New()
-	io.WriteString(hash, s)
-	return hex.EncodeToString(hash.Sum(nil))
+	hash := md5.Sum([]byte(s))
+	return hex.EncodeToString(hash[:])
 }
 
 // Very raw type conversion, in reality there are a lot more types,
@@ -73,17 +71,12 @@ func GetColumnName(buff []byte) string {
 }
 
 // Helper function to write on a connection and receive response data from it
-func Execute(conn net.Conn, message []byte, opts... int) ([]byte, error) {
+func Execute(conn net.Conn, message []byte) ([]byte, error) {
 	if _, err := conn.Write(message); err != nil {
 		return nil, err
 	}
-	
-	buffSize := 1024
-	if len(opts) != 0 {
-		buffSize = opts[0]
-	}
 
-	reply := make([]byte, buffSize)
+	reply := make([]byte, 1024)
 
 	if _, err := conn.Read(reply); err != nil {
 		return nil, err

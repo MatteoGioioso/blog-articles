@@ -12,14 +12,10 @@ import (
 func makeStartupMessageRaw() []byte {
 	buff := make([]byte, 0, 1024)
 
-	// this is initially 0
-	sp := len(buff)
-
 	// Allocate space for the length which will be calculated at the end of the encoding
-	// not 100% sure why is -1, it just creates 255, 255, 255
-	buff = pgio.AppendInt32(buff, -1)
+	buff = append(buff, 0, 0, 0, 0)
 
-	// Attach protocol version translated in bytes (3.0)
+	// Attach protocol version translated as uint 32 (3.0)
 	buff = pgio.AppendUint32(buff, 196608)
 
 	// Attach params, each key and value are separated by a 0 byte
@@ -34,8 +30,8 @@ func makeStartupMessageRaw() []byte {
 	buff = append(buff, 0)
 
 	// Calculate and append at the beginning of the buffer the total length of the message
-	lengthOfTheMessage := int32(len(buff[sp:]))
-	pgio.SetInt32(buff[sp:], lengthOfTheMessage)
+	lengthOfTheMessage := int32(len(buff[0:]))
+	pgio.SetInt32(buff[0:], lengthOfTheMessage)
 
 	return buff
 }
@@ -136,7 +132,7 @@ func makeQueryMessage() []byte {
 
 	// ASCII identifier
 	buff = append(buff, 'Q')
-	query := "SELECT generate_series(1,1000) AS id, md5(random()::text) AS descr;"
+	query := "SELECT generate_series(1,500) AS id, md5(random()::text) AS descr;"
 
 	lengthOfTheMessage := int32(4 + len(query) + 1)
 	buff = pgio.AppendInt32(buff, lengthOfTheMessage)
@@ -152,16 +148,7 @@ func makeCloseMessage() []byte  {
 	return []byte{'X', 0, 0, 0, 4}
 }
 
-type Field struct {
-	Data string
-	Type string
-	Name string
-}
-type Row []Field
-type Rows []Row
-
-func getQueryResponse(buff []byte, conn net.Conn) Rows {
-	rows := make(Rows, 0)
+func getQueryResponse(buff []byte, conn net.Conn) {
 	types := make([]string, 0)
 	names := make([]string, 0)
 
@@ -232,13 +219,7 @@ func getQueryResponse(buff []byte, conn net.Conn) Rows {
 			fieldLength := utils.GetUint32Value(buff, &index)
 			// Finally the actual column data for the current row
 			data := utils.GetStringValue(buff, fieldLength, &index)
-			row := make(Row, 0)
-			row = append(row, Field{
-				Data: data,
-				Type: types[numOfFields-count],
-				Name: names[numOfFields-count],
-			})
-			rows = append(rows, row)
+			fmt.Printf("name: %v, value: %v, type: %v \n", names[numOfFields-count], data, types[numOfFields-count])
 			
 			count--
 			if count <= 0 {
@@ -255,7 +236,6 @@ func getQueryResponse(buff []byte, conn net.Conn) Rows {
 	value := utils.GetStringValue(buff, commandCompleteLength-4, &index)
 	fmt.Println(value)
 	fmt.Println(rowCount)
-	return rows
 }
 
 func main() {
@@ -296,6 +276,5 @@ func main() {
 		os.Exit(1)
 	}
 
-	response := getQueryResponse(queryReply, conn)
-	fmt.Printf("last id fetched: %v\n", response)
+	getQueryResponse(queryReply, conn)
 }
