@@ -164,14 +164,16 @@ func getQueryResponse(buff []byte, conn net.Conn) {
 	count := numOfFields
 	// Decode table header (column name, type, ...)
 	for {
-		columnName := utils.GetColumnName(buff[index:])
+		columnName := utils.GetStringValueWithoutLenButWithDivider(buff[index:], &index)
 		names = append(names, columnName)
-		index = len(columnName) + index + 1 // At the end of each column name there is a 0 byte
 
 		// We skip tableOid and column number, not needed for this demonstration
 		index = index + utils.Int32ByteLen + utils.Int16ByteLen
+		
+		// Type in postgres have an OID you can run this query to check to which type correspond
+		// SELECT oid,typname FROM pg_type WHERE oid='<found oid>'
+		// For simplicity we just map it directly to a go type
 		typeOid := utils.GetUint32Value(buff, &index)
-
 		goType := utils.GetGoType(typeOid)
 		types = append(types, goType)
 

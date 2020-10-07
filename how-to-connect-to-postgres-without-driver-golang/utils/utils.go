@@ -41,33 +41,15 @@ func HexMD5(s string) string {
 // For this purpose, pgx internally uses the following map (key — type name, value — Object ID)
 func GetGoType(typeOid uint32) string {
 	switch typeOid {
-	case 25:
+	case 25: // text
 		return "string"
 	case 23:
 		return "int"
-	case 1043:
+	case 1043: // varchar
 		return "string"
 	}
 
 	return ""
-}
-
-func GetColumnName(buff []byte) string {
-	count := 0
-
-	for {
-		b := buff[count]
-		// column names are delimited by a 0 byte
-		if b == 0 {
-			break
-		}
-
-		// we count the number of bytes until we encounter the 0 byte
-		// then we stop and return the casted slice containing the string
-		count++
-	}
-
-	return string(buff[:count])
 }
 
 // Helper function to write on a connection and receive response data from it
@@ -129,6 +111,26 @@ func GetStringValue(buff []byte, length uint32, index *int) (value string) {
 	value = string(buff[*index : *index+int(length)])
 	*index = *index + int(length)
 	return value
+}
+
+func GetStringValueWithoutLenButWithDivider(buff []byte, index *int) (value string) {
+	count := 0
+	
+	for {
+		b := buff[count]
+		// Field is delimited by a 0 byte
+		if b == 0 {
+			break
+		}
+		
+		// we count the number of bytes until we encounter the 0 byte
+		// then we stop and return the casted slice containing the string
+		count++
+	}
+	
+	*index = *index + count + 1 // add the 0 byte
+	
+	return string(buff[:count])
 }
 
 func GetASCIIIdentifier(buff []byte, index *int) (id string) {
