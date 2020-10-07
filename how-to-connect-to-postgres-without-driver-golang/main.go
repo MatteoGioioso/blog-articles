@@ -31,16 +31,17 @@ func makeStartupMessageRaw() []byte {
 
 	// Calculate and append at the beginning of the buffer the total length of the message
 	lengthOfTheMessage := int32(len(buff[0:]))
-	pgio.SetInt32(buff[0:], lengthOfTheMessage)
+	binary.BigEndian.PutUint32(buff[0:], uint32(lengthOfTheMessage))
 
 	return buff
 }
 
 func decodeStartupResponse(buff []byte) []byte {
 	// first byte is the identifier char in this case R
-	identifierChar := string(buff[0])
+	index := 0
+	identifierChar := utils.GetASCIIIdentifier(buff, &index)
 	fmt.Println("Id char: ", identifierChar)
-	index := 1
+
 	// the second part is a 4 byte which represent the length of your message
 	length := utils.GetUint32Value(buff, &index)
 	fmt.Println("length:", length)
@@ -79,50 +80,46 @@ func makeAuthMessage(salt []byte) []byte {
 // In the normal case the backend will send some
 // ParameterStatus messages, BackendKeyData, and finally ReadyForQuery.
 func decodeAuthMessage(buff []byte) uint32 {
+	index := 0
 	// first byte is the identifier char in this case R
-	identifierChar := string(buff[0])
+	identifierChar := utils.GetASCIIIdentifier(buff, &index)
 	fmt.Println("Id char: ", identifierChar)
 
 	// the second part is a 4 bytes which represent the length of your message
-	length := binary.BigEndian.Uint32(buff[1:5])
+	length := utils.GetUint32Value(buff, &index)
 	fmt.Println("length:", length)
 
 	// last byte, if 0 means success
-	authResult := binary.BigEndian.Uint32(buff[5:9])
+	authResult := utils.GetUint32Value(buff, &index)
 	fmt.Println("auth result: ", authResult)
 
 	// This loop iterate over all the parameters in the message
 	// there are quite many of them (11) so I have decided to extract them programmatically
-	var index = 9
 	for {
-		hasParam := utils.HasParameter(buff, index)
-		if !hasParam {
+		identifierChar := utils.GetASCIIIdentifier(buff, &index)
+		if identifierChar != "S" {
 			break
 		}
 
-		index = index + 1
-		parameterStatusLength := binary.BigEndian.Uint32(buff[index : index+4])
-		fmt.Println("parameter status length: ", parameterStatusLength)
-
-		nextIndex := index + int(parameterStatusLength)
-		param := string(buff[index+1+4 : nextIndex])
-		fmt.Println("params: ", param)
-
-		index = nextIndex + 1
+		length := utils.GetUint32Value(buff, &index)
+		parameterStatusLength := length - 4 // subtract the length
+		param := utils.GetStringValue(buff, parameterStatusLength, &index)
+		fmt.Println("param: ", param)
 	}
-
+	// We need to go back to the ASCII identifier
+	index = index - 1
 	// This message provides secret-key data that the frontend must
 	// save if it wants to be able to issue cancel requests later.
 	// The frontend should not respond to this message, but should continue listening for a ReadyForQuery message.
-	fmt.Println("BackendKeyDate Id:", string(buff[index]))
-	fmt.Println("length: ", binary.BigEndian.Uint32(buff[index+1:index+5]))
-	fmt.Println("process Id: ", binary.BigEndian.Uint32(buff[333:337]))
-	fmt.Println("backend key data: ", binary.BigEndian.Uint32(buff[337:341]))
+	fmt.Println("BackendKeyDate Id:", utils.GetASCIIIdentifier(buff, &index))
+	fmt.Println("length: ", utils.GetUint32Value(buff, &index))
+	fmt.Println("process Id: ", utils.GetUint32Value(buff, &index))
+	fmt.Println("backend key data: ", utils.GetUint32Value(buff, &index))
 
 	// Start-up is completed. The frontend can now issue commands.
-	fmt.Println("Ready for query ASCII Id: ", string(buff[341]))
-	fmt.Println("length: ", binary.BigEndian.Uint32(buff[342:346]))
-	fmt.Println("Status (I: idle): ", string(buff[346]))
+	fmt.Println("Ready for query ASCII Id: ", utils.GetASCIIIdentifier(buff, &index))
+	fmt.Println("length: ", utils.GetUint32Value(buff, &index))
+	fmt.Println("Status (I: idle): ", utils.GetASCIIIdentifier(buff, &index))
 
 	return authResult
 }
@@ -144,7 +141,7 @@ func makeQueryMessage() []byte {
 	return buff
 }
 
-func makeCloseMessage() []byte  {
+func makeCloseMessage() []byte {
 	return []byte{'X', 0, 0, 0, 4}
 }
 
@@ -169,7 +166,7 @@ func getQueryResponse(buff []byte, conn net.Conn) {
 
 		// We skip tableOid and column number, not needed for this demonstration
 		index = index + utils.Int32ByteLen + utils.Int16ByteLen
-		
+
 		// Type in postgres have an OID you can run this query to check to which type correspond
 		// SELECT oid,typname FROM pg_type WHERE oid='<found oid>'
 		// For simplicity we just map it directly to a go type
@@ -204,25 +201,25 @@ func getQueryResponse(buff []byte, conn net.Conn) {
 
 		if numOfFields == 0 {
 			reply := make([]byte, 8192)
-			
+
 			if _, err := conn.Read(reply); err != nil {
 				fmt.Println(err)
 			}
-			
+
 			buff = buff[:index]
 			buff = append(buff, reply[1:]...)
 			numOfFields = 2
 			//break
 		}
-		
+
 		// Decode each column in each row
 		count := numOfFields
 		for {
 			fieldLength := utils.GetUint32Value(buff, &index)
 			// Finally the actual column data for the current row
-			data := utils.GetStringValue(buff, fieldLength, &index)
-			fmt.Printf("name: %v, value: %v, type: %v \n", names[numOfFields-count], data, types[numOfFields-count])
-			
+			_ = utils.GetStringValue(buff, fieldLength, &index)
+			//fmt.Printf("name: %v, value: %v, type: %v \n", names[numOfFields-count], data, types[numOfFields-count])
+
 			count--
 			if count <= 0 {
 				break
@@ -234,7 +231,7 @@ func getQueryResponse(buff []byte, conn net.Conn) {
 	fmt.Println("Command complete: ", commandComplete)
 	commandCompleteLength := utils.GetUint32Value(buff, &index)
 	fmt.Println("length: ", commandCompleteLength)
-	
+
 	value := utils.GetStringValue(buff, commandCompleteLength-4, &index)
 	fmt.Println(value)
 	fmt.Println(rowCount)
