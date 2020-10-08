@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"github.com/jackc/pgio"
+	"io"
 	"net"
 	"os"
 	"pg-go/utils"
@@ -117,9 +118,12 @@ func decodeAuthMessage(buff []byte) uint32 {
 	fmt.Println("backend key data: ", utils.GetUint32Value(buff, &index))
 
 	// Start-up is completed. The frontend can now issue commands.
-	fmt.Println("Ready for query ASCII Id: ", utils.GetASCIIIdentifier(buff, &index))
-	fmt.Println("length: ", utils.GetUint32Value(buff, &index))
-	fmt.Println("Status (I: idle): ", utils.GetASCIIIdentifier(buff, &index))
+	readyForQueryId := utils.GetASCIIIdentifier(buff, &index)
+	fmt.Println("Ready for query ASCII Id: ", readyForQueryId)
+	rfqLength := utils.GetUint32Value(buff, &index)
+	fmt.Println("rfqLength: ", rfqLength)
+	status := utils.GetASCIIIdentifier(buff, &index)
+	fmt.Println("Status (I: idle): ", status)
 
 	return authResult
 }
@@ -129,7 +133,7 @@ func makeQueryMessage() []byte {
 
 	// ASCII identifier
 	buff = append(buff, 'Q')
-	query := "SELECT generate_series(1,500) AS id, md5(random()::text) AS descr;"
+	query := "SELECT generate_series(1,10) AS id, md5(random()::text) AS descr;"
 
 	lengthOfTheMessage := int32(4 + len(query) + 1)
 	buff = pgio.AppendInt32(buff, lengthOfTheMessage)
@@ -139,10 +143,6 @@ func makeQueryMessage() []byte {
 	buff = append(buff, 0)
 
 	return buff
-}
-
-func makeCloseMessage() []byte {
-	return []byte{'X', 0, 0, 0, 4}
 }
 
 func getQueryResponse(buff []byte, conn net.Conn) {
@@ -217,8 +217,8 @@ func getQueryResponse(buff []byte, conn net.Conn) {
 		for {
 			fieldLength := utils.GetUint32Value(buff, &index)
 			// Finally the actual column data for the current row
-			_ = utils.GetStringValue(buff, fieldLength, &index)
-			//fmt.Printf("name: %v, value: %v, type: %v \n", names[numOfFields-count], data, types[numOfFields-count])
+			data := utils.GetStringValue(buff, fieldLength, &index)
+			fmt.Printf("name: %v, value: %v, type: %v \n", names[numOfFields-count], data, types[numOfFields-count])
 
 			count--
 			if count <= 0 {
@@ -235,6 +235,13 @@ func getQueryResponse(buff []byte, conn net.Conn) {
 	value := utils.GetStringValue(buff, commandCompleteLength-4, &index)
 	fmt.Println(value)
 	fmt.Println(rowCount)
+}
+
+func makeCloseMessage() []byte {
+	buff := make([]byte, 0, 5)
+	buff = append(buff, "X"...)
+	buff = pgio.AppendInt32(buff, 4)
+	return buff
 }
 
 func main() {
@@ -276,4 +283,14 @@ func main() {
 	}
 
 	getQueryResponse(queryReply, conn)
+
+	closeMessage := makeCloseMessage()
+	if _, err := utils.Execute(conn, closeMessage); err != nil {
+		if err == io.EOF {
+			fmt.Println("Connection terminated")
+			os.Exit(0)
+		}
+		fmt.Println(err)
+		os.Exit(1)
+	}
 }
