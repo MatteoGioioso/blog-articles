@@ -69,7 +69,8 @@ func makeAuthMessage(salt []byte) []byte {
 	digestedPassword := "md5" + utils.HexMD5(utils.HexMD5(utils.Password+utils.User)+string(salt))
 
 	// total length of the message
-	buff = pgio.AppendInt32(buff, int32(4+len(digestedPassword)+1))
+	lengthOfMessage := int32(utils.Int32ByteLen + len(digestedPassword) + 1)
+	buff = pgio.AppendInt32(buff, lengthOfMessage)
 
 	// Attach encrypted Password
 	buff = append(buff, digestedPassword...)
@@ -135,7 +136,7 @@ func makeQueryMessage() []byte {
 	buff = append(buff, 'Q')
 	query := "SELECT generate_series(1,10) AS id, md5(random()::text) AS descr;"
 
-	lengthOfTheMessage := int32(4 + len(query) + 1)
+	lengthOfTheMessage := int32(utils.Int32ByteLen + len(query) + 1)
 	buff = pgio.AppendInt32(buff, lengthOfTheMessage)
 
 	buff = append(buff, query...)
@@ -148,6 +149,7 @@ func makeQueryMessage() []byte {
 func getQueryResponse(buff []byte, conn net.Conn) {
 	types := make([]string, 0)
 	names := make([]string, 0)
+	tablePrinter := utils.TablePrinter{}
 
 	ASCIIId := string(buff[0])
 	// This char should be "T"
@@ -169,10 +171,10 @@ func getQueryResponse(buff []byte, conn net.Conn) {
 
 		// Type in postgres have an OID you can run this query to check to which type correspond
 		// SELECT oid,typname FROM pg_type WHERE oid='<found oid>'
-		// For simplicity we just map it directly to a go type
+		// For simplicity we just map few types to avoid making a new call
 		typeOid := utils.GetUint32Value(buff, &index)
-		goType := utils.GetGoType(typeOid)
-		types = append(types, goType)
+		typeName := utils.GetTypeName(typeOid)
+		types = append(types, typeName)
 
 		// We skip typeLength, typeMod, and format (text of binary)
 		// not need those values for this purpose but you can see the specifications
@@ -186,6 +188,7 @@ func getQueryResponse(buff []byte, conn net.Conn) {
 
 	// Decode each row
 	rowCount := 0
+	var rows [][]string
 	for {
 		rowCount++
 		// I am quite sure there is a better way to do this
@@ -214,19 +217,22 @@ func getQueryResponse(buff []byte, conn net.Conn) {
 
 		// Decode each column in each row
 		count := numOfFields
+		var row []string
 		for {
 			fieldLength := utils.GetUint32Value(buff, &index)
 			// Finally the actual column data for the current row
 			data := utils.GetStringValue(buff, fieldLength, &index)
-			fmt.Printf("name: %v, value: %v, type: %v \n", names[numOfFields-count], data, types[numOfFields-count])
-
+			row = append(row, data)
+			
 			count--
 			if count <= 0 {
+				rows = append(rows, row)
 				break
 			}
 		}
 	}
-
+	tablePrinter.PrintTable(names, types, rows)
+	
 	commandComplete := utils.GetASCIIIdentifier(buff, &index)
 	fmt.Println("Command complete: ", commandComplete)
 	commandCompleteLength := utils.GetUint32Value(buff, &index)
@@ -240,7 +246,7 @@ func getQueryResponse(buff []byte, conn net.Conn) {
 func makeCloseMessage() []byte {
 	buff := make([]byte, 0, 5)
 	buff = append(buff, "X"...)
-	buff = pgio.AppendInt32(buff, 4)
+	buff = pgio.AppendInt32(buff, int32(utils.Int32ByteLen))
 	return buff
 }
 

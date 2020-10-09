@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net"
+	"strings"
 )
 
 var (
@@ -16,17 +17,6 @@ var (
 	Int32ByteLen = 4
 	Int16ByteLen = 2
 )
-
-func HasParameter(buff []byte, index int) bool {
-	ASCIIId := string(buff[index])
-
-	// "S" stands for parameter
-	if ASCIIId == "S" {
-		return true
-	}
-
-	return false
-}
 
 // Helper function for hashing our credentials
 func HexMD5(s string) string {
@@ -39,14 +29,14 @@ func HexMD5(s string) string {
 // PostgreSQL has a type table called pg_type (SELECT oid, typname FROM pg_type).
 // The driver uses the knowledge about OIDs to figure out how to map data from database column types into primitive Go types.
 // For this purpose, pgx internally uses the following map (key — type name, value — Object ID)
-func GetGoType(typeOid uint32) string {
+func GetTypeName(typeOid uint32) string {
 	switch typeOid {
 	case 25: // text
-		return "string"
+		return "text"
 	case 23:
-		return "int"
+		return "int4"
 	case 1043: // varchar
-		return "string"
+		return "varchar"
 	}
 
 	return ""
@@ -70,11 +60,11 @@ func Execute(conn net.Conn, message []byte) ([]byte, error) {
 func ReadAllBuffer(conn net.Conn, message []byte) ([]byte, error) {
 	buf := make([]byte, 0, 4096)
 	tmp := make([]byte, 4096)
-	
+
 	if _, err := conn.Write(message); err != nil {
 		return nil, err
 	}
-	
+
 	for {
 		n, err := conn.Read(tmp)
 		if err != nil {
@@ -115,21 +105,21 @@ func GetStringValue(buff []byte, length uint32, index *int) (value string) {
 
 func GetStringValueWithoutLenButWithDivider(buff []byte, index *int) (value string) {
 	count := 0
-	
+
 	for {
 		b := buff[count]
 		// Field is delimited by a 0 byte
 		if b == 0 {
 			break
 		}
-		
+
 		// we count the number of bytes until we encounter the 0 byte
 		// then we stop and return the casted slice containing the string
 		count++
 	}
-	
+
 	*index = *index + count + 1 // add the 0 byte
-	
+
 	return string(buff[:count])
 }
 
@@ -137,4 +127,77 @@ func GetASCIIIdentifier(buff []byte, index *int) (id string) {
 	id = string(buff[*index])
 	*index = *index + 1
 	return id
+}
+
+type TablePrinter struct {
+	headerColLen []int
+	dataColLen   []int
+	fieldLength  int
+	names        []string
+	types        []string
+}
+
+func (t *TablePrinter) getHeaderInfo(names []string, types []string) {
+	header := ""
+	count := 0
+	for i, name := range names {
+		row := fmt.Sprintf("%v (%v) ", name, types[i])
+		header = header + row
+		t.headerColLen = append(t.headerColLen, len(row))
+		count++
+	}
+
+	t.fieldLength = count
+	t.names = names
+	t.types = types
+}
+
+func (t *TablePrinter) formatHeader() string {
+	header := ""
+	count := 0
+	for i, name := range t.names {
+		row := fmt.Sprintf("%v (%v)%v| ", name, t.types[i], strings.Repeat(" ", t.dataColLen[i]))
+		header = header + row
+		count++
+	}
+
+	return header
+}
+
+func (t *TablePrinter) formatTableData(rows [][]string) string {
+	t.dataColLen = make([]int, t.fieldLength)
+	tableText := ""
+	for _, row := range rows {
+		rowText := ""
+		for j, data := range row {
+			columnLength := t.headerColLen[j]
+			// Check which between the header or the data is longer
+			if columnLength <= len(data) {
+				columnLength = len(data)
+				rowText = rowText + fmt.Sprintf("%v | ", data)
+				t.dataColLen[j] = columnLength - t.headerColLen[j] + 2
+				continue
+			}
+			columnLength = columnLength - len(data)
+			t.dataColLen[j] = 1
+			rowText = rowText + fmt.Sprintf("%v%v| ", data, strings.Repeat(" ", columnLength))
+		}
+
+		tableText = tableText + rowText + "\n"
+	}
+	return tableText
+}
+
+func (t *TablePrinter) PrintTable(names []string, types []string, rows [][]string) {
+	t.getHeaderInfo(names, types)
+	tableText := t.formatTableData(rows)
+	header := t.formatHeader()
+
+	fmt.Println("")
+	fmt.Println("")
+	fmt.Println(header)
+	fmt.Println(strings.Repeat("-", len(header)))
+	fmt.Println(tableText)
+	fmt.Println("")
+	fmt.Println("")
 }
