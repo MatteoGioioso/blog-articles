@@ -1,20 +1,28 @@
 package main
 
 import (
+	"exploring-postgres-data-and-indexes/utils"
 	"fmt"
 	"io/ioutil"
+	"os"
 )
 
-// SELECT oid FROM pg_databases WHERE databse='test';
-
-// SELECT oid,relname FROM pg_class WHERE relname='users';
-
 func main() {
-	path := "pg_data/base/16384/16399"
-	file, err := ioutil.ReadFile(path)
+	db := utils.DB{}
+	db.Connect()
+	defer db.Close()
+	
+	indexPath, err := db.GetUserNameIndexPath()
 	if err != nil {
 		fmt.Println(err)
+		os.Exit(1)
 	}
+	fmt.Println(indexPath)
 	
-	fmt.Println(file)
+	indexFile, err := ioutil.ReadFile(indexPath)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	fmt.Println(indexFile)
 }

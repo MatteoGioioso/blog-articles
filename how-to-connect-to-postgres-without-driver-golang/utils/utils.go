@@ -132,7 +132,7 @@ func GetASCIIIdentifier(buff []byte, index *int) (id string) {
 type TablePrinter struct {
 	headerColLen []int
 	dataColLen   []int
-	fieldLength  int
+	fieldCount   int
 	names        []string
 	types        []string
 }
@@ -147,7 +147,7 @@ func (t *TablePrinter) getHeaderInfo(names []string, types []string) {
 		count++
 	}
 
-	t.fieldLength = count
+	t.fieldCount = count
 	t.names = names
 	t.types = types
 }
@@ -165,7 +165,7 @@ func (t *TablePrinter) formatHeader() string {
 }
 
 func (t *TablePrinter) formatTableData(rows [][]string) string {
-	t.dataColLen = make([]int, t.fieldLength)
+	t.dataColLen = make([]int, t.fieldCount)
 	tableText := ""
 	for _, row := range rows {
 		rowText := ""
@@ -175,7 +175,7 @@ func (t *TablePrinter) formatTableData(rows [][]string) string {
 			if columnLength <= len(data) {
 				columnLength = len(data)
 				rowText = rowText + fmt.Sprintf("%v | ", data)
-				t.dataColLen[j] = columnLength - t.headerColLen[j] + 2
+				t.dataColLen[j] = columnLength - t.headerColLen[j] + 2 // two are the extra spaces
 				continue
 			}
 			columnLength = columnLength - len(data)
