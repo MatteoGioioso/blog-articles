@@ -146,15 +146,14 @@ func makeQueryMessage() []byte {
 	return buff
 }
 
-func getQueryResponse(buff []byte, conn net.Conn) {
+func getQueryResponse(buff []byte) {
 	types := make([]string, 0)
 	names := make([]string, 0)
 	tablePrinter := utils.TablePrinter{}
-
-	ASCIIId := string(buff[0])
-	// This char should be "T"
+	
+	index := 0
+	ASCIIId := utils.GetASCIIIdentifier(buff, &index)
 	fmt.Println("query result id: ", ASCIIId)
-	index := 1 // start after the first char
 	length := utils.GetUint32Value(buff, &index)
 	fmt.Println("length of message: ", length)
 
@@ -198,23 +197,9 @@ func getQueryResponse(buff []byte, conn net.Conn) {
 		}
 
 		index = index + 1 // jump the identifier
-		length := utils.GetUint32Value(buff, &index)
-		_ = length
+		_ = utils.GetUint32Value(buff, &index)
 		numOfFields := utils.GetUint16Value(buff, &index)
-
-		if numOfFields == 0 {
-			reply := make([]byte, 8192)
-
-			if _, err := conn.Read(reply); err != nil {
-				fmt.Println(err)
-			}
-
-			buff = buff[:index]
-			buff = append(buff, reply[1:]...)
-			numOfFields = 2
-			//break
-		}
-
+		
 		// Decode each column in each row
 		count := numOfFields
 		var row []string
@@ -226,11 +211,14 @@ func getQueryResponse(buff []byte, conn net.Conn) {
 			
 			count--
 			if count <= 0 {
+				// Append the completed row into the rows array
 				rows = append(rows, row)
 				break
 			}
 		}
 	}
+	
+	// psql style table printer
 	tablePrinter.PrintTable(names, types, rows)
 	
 	commandComplete := utils.GetASCIIIdentifier(buff, &index)
@@ -288,7 +276,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	getQueryResponse(queryReply, conn)
+	getQueryResponse(queryReply)
 
 	closeMessage := makeCloseMessage()
 	if _, err := utils.Execute(conn, closeMessage); err != nil {
