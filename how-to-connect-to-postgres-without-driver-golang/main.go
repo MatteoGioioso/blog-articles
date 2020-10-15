@@ -154,7 +154,7 @@ func getQueryResponse(buff []byte) {
 	types := make([]string, 0)
 	names := make([]string, 0)
 	tablePrinter := utils.TablePrinter{}
-	fmt.Println(string(buff))
+
 	index := 0
 	ASCIIId := utils.GetASCIIIdentifier(buff, &index)
 	fmt.Println("query result id: ", ASCIIId)
