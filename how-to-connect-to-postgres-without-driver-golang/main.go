@@ -16,7 +16,11 @@ func makeStartupMessageRaw() []byte {
 	// Allocate space for the length which will be calculated at the end of the encoding
 	buff = append(buff, 0, 0, 0, 0)
 
-	// Attach protocol version translated as uint 32 (3.0)
+	// Attach protocol version 3.0
+	// From the Postgres documentation "In the protocol number,
+	// the most significant 16 bits are the major version..."
+	// if you convert 196608 to its binary representation the first 16 will represent the number 3
+	// 00000000 00000011 == 3
 	buff = pgio.AppendUint32(buff, 196608)
 
 	// Attach params, each key and value are separated by a 0 byte

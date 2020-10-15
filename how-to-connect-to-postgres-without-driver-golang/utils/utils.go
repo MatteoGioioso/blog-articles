@@ -76,7 +76,9 @@ func ReadAllBuffer(conn net.Conn, message []byte) ([]byte, error) {
 
 		// Last message is Query idling "I"
 		// Did not find any better method to stop reading from the buffer
-		// till is completed
+		// till is completed.
+		// If I am not mistaken jackc/pgx does not read the whole response at once,
+		// instead it uses the .Next() method to check if there are still data to read
 		if string(tmp[n-1]) == "I" {
 			return buf, nil
 		}
@@ -138,11 +140,9 @@ type TablePrinter struct {
 }
 
 func (t *TablePrinter) getHeaderInfo(names []string, types []string) {
-	header := ""
 	count := 0
 	for i, name := range names {
 		row := fmt.Sprintf("%v (%v) ", name, types[i])
-		header = header + row
 		t.headerColLen = append(t.headerColLen, len(row))
 		count++
 	}
