@@ -28,6 +28,10 @@ func makeStartupMessageRaw() []byte {
 	buff = append(buff, 0)
 	buff = append(buff, utils.Database...)
 	buff = append(buff, 0)
+	buff = append(buff, "client_encoding"...)
+	buff = append(buff, 0)
+	buff = append(buff, "UTF8"...)
+	buff = append(buff, 0)
 	buff = append(buff, 0)
 
 	// Calculate and append at the beginning of the buffer the total length of the message
@@ -150,7 +154,7 @@ func getQueryResponse(buff []byte) {
 	types := make([]string, 0)
 	names := make([]string, 0)
 	tablePrinter := utils.TablePrinter{}
-	
+	fmt.Println(string(buff))
 	index := 0
 	ASCIIId := utils.GetASCIIIdentifier(buff, &index)
 	fmt.Println("query result id: ", ASCIIId)
@@ -162,7 +166,7 @@ func getQueryResponse(buff []byte) {
 	count := numOfFields
 	// Decode table header (column name, type, ...)
 	for {
-		columnName := utils.GetStringValueWithoutLenButWithDivider(buff[index:], &index)
+		columnName := utils.GetStringValueWithNullTermination(buff[index:], &index)
 		names = append(names, columnName)
 
 		// We skip tableOid and column number, not needed for this demonstration

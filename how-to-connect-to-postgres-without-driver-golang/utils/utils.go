@@ -103,7 +103,7 @@ func GetStringValue(buff []byte, length uint32, index *int) (value string) {
 	return value
 }
 
-func GetStringValueWithoutLenButWithDivider(buff []byte, index *int) (value string) {
+func GetStringValueWithNullTermination(buff []byte, index *int) (value string) {
 	count := 0
 
 	for {
