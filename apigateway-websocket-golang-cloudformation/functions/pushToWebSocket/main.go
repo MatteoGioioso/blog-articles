@@ -34,13 +34,13 @@ func NewApiGatewayManagementApi() *apigatewaymanagementapi.ApiGatewayManagementA
 		aws.NewConfig().WithEndpoint(GetApiGatewayEndpoint(apiGatewayId)))
 }
 
-func function(request events.APIGatewayWebsocketProxyRequest) events.APIGatewayProxyResponse {
+func function(request events.APIGatewayWebsocketProxyRequest) (events.APIGatewayProxyResponse, error) {
 	connectionId := request.RequestContext.ConnectionID
 	if err := json.Unmarshal([]byte(request.Body), &requestBody); err != nil {
 		return events.APIGatewayProxyResponse{
 			StatusCode: 500,
 			Body:       "Something went wrong",
-		}
+		}, nil
 	}
 
 	input := &apigatewaymanagementapi.PostToConnectionInput{
@@ -51,12 +51,12 @@ func function(request events.APIGatewayWebsocketProxyRequest) events.APIGatewayP
 		return events.APIGatewayProxyResponse{
 			StatusCode: 500,
 			Body:       "Something went wrong",
-		}
+		}, nil
 	}
 
 	return events.APIGatewayProxyResponse{
 		StatusCode: 200,
-	}
+	}, nil
 }
 
 func main() {

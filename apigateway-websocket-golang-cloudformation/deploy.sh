@@ -9,7 +9,7 @@ export ENV=${1:-dev}
 export APPNAME=websocket-test
 PROJECT=${APPNAME}-${ENV}
 BUCKET=${PROJECT}-lambda-deployment-artifacts
-PROFILE=default
+PROFILE=dev
 REGION=ap-southeast-1
 
 sam build

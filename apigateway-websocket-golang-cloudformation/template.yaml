@@ -1,18 +1,18 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
 Description: >
-  web-api
+  websocket-api
 
-  Sample SAM Template for web-api
+  Sample SAM Template for websocket-api
 
 Parameters:
   Environment:
     Type: String
     AllowedValues:
-      - production
-      - staging
-      - development
-    ConstraintDescription: invalid environment, only [production, staging, development] are allowed
+      - prod
+      - stag
+      - dev
+    ConstraintDescription: invalid environment, only [prod, stag, dev] are allowed
   Appname:
     Type: String
 
@@ -43,12 +43,24 @@ Resources:
       AutoDeploy: true
       ApiId: !Ref WebSocket
 
+  Deployment:
+    Type: AWS::ApiGatewayV2::Deployment
+    DependsOn:
+      - ConnectRoute
+      - PushToWebSocket
+    Properties:
+      ApiId: !Ref WebSocket
+
+
+  # CONNECT ROUTE =================================
+
   ConnectRoute:
     Type: AWS::ApiGatewayV2::Route
     Properties:
       ApiId: !Ref WebSocket
       RouteKey: "$connect"
-      AuthorizationType: NONE
+      AuthorizationType: CUSTOM
+      AuthorizerId: !Ref Authorizer
       Target: !Join
         - '/'
         - - 'integrations'
@@ -61,21 +73,38 @@ Resources:
       IntegrationType: AWS_PROXY
       IntegrationUri:
         Fn::Sub:
-          arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${onConnectWebsocket.Arn}/invocations
+          arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${onConnect.Arn}/invocations
 
-  CustomRoute:
+  onConnect:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ./functions/onConnect
+      Handler: main
+      Policies:
+        - AWSLambdaBasicExecutionRole
+
+  OnConnectPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref onConnect
+      Principal: apigateway.amazonaws.com
+
+
+  # PUSH TO WEBSOCKET ROUTE =================================
+  PushToWebSocket:
     Type: AWS::ApiGatewayV2::Route
     Properties:
       ApiId: !Ref WebSocket
-      RouteKey: customroute
+      RouteKey: pushtowebsocket
       AuthorizationType: NONE
-      OperationName: CustomRoute
+      OperationName: PushToWebSocket
       Target: !Join
         - '/'
         - - 'integrations'
-          - !Ref CustomRouteIntegration
+          - !Ref PushToWebSocketIntegration
 
-  CustomRouteIntegration:
+  PushToWebSocketIntegration:
     Type: AWS::ApiGatewayV2::Integration
     Properties:
       ApiId: !Ref WebSocket
@@ -83,9 +112,9 @@ Resources:
       IntegrationType: AWS_PROXY
       IntegrationUri:
         Fn::Sub:
-          arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${customRoute.Arn}/invocations
+          arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${PushToWebSocketFunction.Arn}/invocations
 
-  CustomRouteFunction:
+  PushToWebSocketFunction:
     Type: AWS::Serverless::Function
     Properties:
       Policies:
@@ -96,30 +125,44 @@ Resources:
                 - execute-api:ManageConnections
               Resource:
                 - !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${WebSocket}/*
-      CodeUri: bin/
-      Handler: customRoute
+      CodeUri: ./functions/pushToWebSocket
+      Handler: main
       Environment:
         Variables:
           API_GATEWAY_ID: !Ref WebSocket
 
-  CustomRoutePermission:
+  PushToWebSocketPermission:
     Type: AWS::Lambda::Permission
     Properties:
       Action: lambda:InvokeFunction
-      FunctionName: !Ref CustomRouteFunction
+      FunctionName: !Ref PushToWebSocketFunction
       Principal: apigateway.amazonaws.com
 
-  onConnectWebsocket:
+
+  # AUTHENTICATION ====================
+  Authorizer:
+    Type: AWS::ApiGatewayV2::Authorizer
+    Properties:
+      Name: LambdaAuthorizer
+      ApiId: !Ref WebSocket
+      AuthorizerType: REQUEST
+      AuthorizerUri:
+        Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${RequestAuthorizer.Arn}/invocations
+      IdentitySource:
+        - route.request.querystring.Auth
+
+  RequestAuthorizer:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: bin/
-      Handler: onConnectWebsocket
       Policies:
         - AWSLambdaBasicExecutionRole
+      CodeUri: ./functions/authorizer
+      Handler: main
 
-  OnConnectPermission:
+  RequestAuthorizerPermission:
     Type: AWS::Lambda::Permission
     Properties:
       Action: lambda:InvokeFunction
-      FunctionName: !Ref onConnectWebsocket
       Principal: apigateway.amazonaws.com
+      FunctionName:
+        Ref: RequestAuthorizer

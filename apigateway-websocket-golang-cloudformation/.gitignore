@@ -1,1 +1,3 @@
 vendor
+.aws-sam
+output.yaml
