@@ -1,0 +1,288 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Boilerplate vpc-peering between alb and ec2 instance in different vpc"
+
+Parameters:
+  Environment:
+    Type: String
+    AllowedValues:
+      - production
+      - stag
+      - dev
+    ConstraintDescription: invalid environment, only [production, staging, development] are allowed
+
+  Appname:
+    Type: String
+    Default: myapp
+
+  VpcCIDR:
+    Description: Please enter the IP range (CIDR notation) for this VPC
+    Type: String
+    Default: 10.192.0.0/16
+
+  PublicSubnetACIDR:
+    Description: Please enter the IP range (CIDR notation) for the public subnet in the first Availability Zone
+    Type: String
+    Default: 10.192.10.0/24
+
+  PublicSubnetBCIDR:
+    Description: Please enter the IP range (CIDR notation) for the public subnet in the second Availability Zone
+    Type: String
+    Default: 10.192.11.0/24
+
+  PrivateSubnetACIDR:
+    Description: Please enter the IP range (CIDR notation) for the private subnet in the first Availability Zone
+    Type: String
+    Default: 10.192.20.0/24
+
+  PrivateSubnetBCIDR:
+    Description: Please enter the IP range (CIDR notation) for the private subnet in the second Availability Zone
+    Type: String
+    Default: 10.192.21.0/24
+
+  CertificateArn:
+    Type: String
+    Description: Arn of the certifications from AWS certificate manager
+
+  AccepterVPC:
+    Type: AWS::EC2::VPC::Id
+
+  AccepterVPCCidrBlock:
+    Type: String
+
+  AccepterVPCRouteTableId:
+    Type: String
+
+  AccepterVPCSubnetId:
+    Type: String
+
+  AccepterVPCEC2PrivateIP:
+    Type: String
+
+  AccepterVPCEC2Port:
+    Type: String
+
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VpcCIDR
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: name
+          Value:  !Join ['', [!Ref Appname, !Ref Environment, "-vpc" ]]
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: name
+          Value: !Ref Environment
+
+  InternetGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  PublicSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      CidrBlock: !Ref PublicSubnetACIDR
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${Environment} Public Subnet (AZ1)
+
+  PublicSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 1, !GetAZs  '' ]
+      CidrBlock: !Ref PublicSubnetBCIDR
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${Environment} Public Subnet (AZ2)
+
+  PrivateSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 0, !GetAZs  '' ]
+      CidrBlock: !Ref PrivateSubnetACIDR
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${Environment} Private Subnet (AZ1)
+
+  PrivateSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 1, !GetAZs  '' ]
+      CidrBlock: !Ref PrivateSubnetBCIDR
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${Environment} Private Subnet (AZ2)
+
+
+  #========================= Routes ================================#
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    DependsOn: VPC
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${Environment} Public Routes
+
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    DependsOn: VPC
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${Environment} Private Routes
+
+  DefaultPublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnetARouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnetA
+
+  PublicSubnetBRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnetB
+
+  PrivateSubnetARouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      SubnetId: !Ref PrivateSubnetA
+
+  PrivateSubnetBRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      SubnetId: !Ref PrivateSubnetB
+
+
+  #=============== VPC Peering =====================#
+
+  VPCPeeringConnection:
+    Type: AWS::EC2::VPCPeeringConnection
+    Properties:
+      VpcId: !Ref VPC
+      PeerVpcId: "AccepterVPC"
+
+  ToAccepterVPCPublicRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: !Ref AccepterVPCCidrBlock
+      RouteTableId: !Ref PublicRouteTable
+      VpcPeeringConnectionId: !Ref VPCPeeringConnection
+
+  ToAccepterVPCPrivateRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: !Ref AccepterVPCCidrBlock
+      RouteTableId: !Ref PrivateRouteTable
+      VpcPeeringConnectionId: !Ref VPCPeeringConnection
+
+  # This is for the accepter VPC which in this case is the default VPC
+  # created by Amazon when you launch your first EC2 instance
+  # If you have two custom VPCs than create a separate template
+  # and mirror everything there, except with the VPCPeeringConnection,
+  # as one is enough for double ended communication
+  ToThisVPCPublicRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: !Ref VpcCIDR # This vpc CIDR block or a subnet
+      RouteTableId: !Ref AccepterVPCRouteTableId # Default VPC Route table
+      VpcPeeringConnectionId: !Ref VPCPeeringConnection
+
+  AccepterVPCSubnetTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref AccepterVPCRouteTableId
+      SubnetId: !Ref AccepterVPCSubnetId
+
+
+  #========================= ELB ================================#
+
+  ELBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow traffic to the ALB
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: '22'
+          ToPort: '22'
+          CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+        - IpProtocol: "-1"
+          FromPort: -1
+          ToPort: -1
+          CidrIp: 0.0.0.0/0
+
+  ElasticLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      IpAddressType: ipv4
+      Scheme: internet-facing
+      SecurityGroups:
+        - !Ref ELBSecurityGroup
+      Subnets:
+        - !Ref PublicSubnetA
+        - !Ref PublicSubnetB
+      Type: application
+
+  TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Port: "AccepterVPCEC2Port"
+      Protocol: HTTP
+      Targets:
+        - Id: "AccepterVPCEC2PrivateIP"
+          AvailabilityZone: all
+          Port: "AccepterVPCEC2Port"
+      TargetType: ip
+      VpcId: !Ref VPC
+
+  Listener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref TargetGroup
+      LoadBalancerArn: !Ref ElasticLoadBalancer
+      Certificates:
+        - CertificateArn: !Ref CertificateArn
+      Port: 443
+      Protocol: HTTPS
+
+Outputs:
+  VpcId:
+    Value: !Ref VPC
+    Export:
+      Name: !Sub ${Appname}-${Environment}-vpcId
