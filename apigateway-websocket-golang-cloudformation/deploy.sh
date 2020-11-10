@@ -1,35 +1,31 @@
-#!/usr/bin/env bash
+#!/bin/bash
 
+# Simple deployment script with SAM
 # Specify an argument to the script to override the environment
-# development:   ./deploy.sh
-# production:  ./deploy.sh production
-# staging:  ./deploy.sh staging
-ENV=development
-APP_NAME=myapp
-PROJECT=${APP_NAME}-${ENV}
-BUCKET=${PROJECT}
+#  dev:   ./deploy.sh
+#  prod:  ./deploy.sh production
+#  stag:  ./deploy.sh staging
+export ENV=${1:-dev}
+export APPNAME=websocket-test
+PROJECT=${APPNAME}-${ENV}
+BUCKET=${PROJECT}-lambda-deployment-artifacts
+PROFILE=default
+REGION=ap-southeast-1
 
-#Build and testing process
-go mod vendor
-make build || exit 1
+sam build
 
-# make the deployment bucket in case it doesn't exist
-aws s3 mb s3://"${BUCKET}"
+aws --profile "${PROFILE}" --region "${REGION}" s3 mb s3://"${BUCKET}"
 
-aws cloudformation validate-template \
-  --template-body file://template.yaml || exit 1
-
-aws cloudformation package \
-  --template-file template.yaml \
+sam package --profile "${PROFILE}" --region "${REGION}"  \
+  --template-file .aws-sam/build/template.yaml \
   --output-template-file output.yaml \
   --s3-bucket "${BUCKET}"
 
-# the actual deployment step
-aws cloudformation deploy \
+## the actual deployment step
+sam deploy --profile "${PROFILE}" --region "${REGION}" \
   --template-file output.yaml \
   --stack-name "${PROJECT}" \
   --capabilities CAPABILITY_IAM \
   --parameter-overrides \
-  Environment="$ENV" \
-  AppName=${APP_NAME}
-
+  Environment="${ENV}" \
+  Appname="${APPNAME}"
