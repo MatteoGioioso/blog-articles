@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/dgrijalva/jwt-go/v4"
@@ -48,11 +47,11 @@ func validateToken(token string) (*jwt.Token, error)  {
 
 func function(event events.APIGatewayCustomAuthorizerRequestTypeRequest) (events.APIGatewayCustomAuthorizerResponse, error) {
 	token := event.QueryStringParameters["Auth"]
-	fmt.Println(token)
-	//_, err := validateToken(token)
-	//if err != nil {
-	//	return generatePolicy("user", "Deny", event.MethodArn), nil
-	//}
+
+	_, err := validateToken(token)
+	if err != nil {
+		return generatePolicy("user", "Deny", event.MethodArn), nil
+	}
 	
 	return generatePolicy("user", "Allow", event.MethodArn), nil
 }
