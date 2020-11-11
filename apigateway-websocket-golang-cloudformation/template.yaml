@@ -143,7 +143,7 @@ Resources:
   Authorizer:
     Type: AWS::ApiGatewayV2::Authorizer
     Properties:
-      Name: LambdaAuthorizer
+      Name: !Sub ${Appname}-${Environment}-websocket-authorizer
       ApiId: !Ref WebSocket
       AuthorizerType: REQUEST
       AuthorizerUri:
