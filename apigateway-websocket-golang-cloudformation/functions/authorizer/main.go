@@ -23,6 +23,7 @@ func generatePolicy(principalId, effect, resource string) events.APIGatewayCusto
 	}
 
 	// Optional output with custom properties of the String, Number or Boolean type.
+	// This must be only primitive types
 	authResponse.Context = map[string]interface{}{
 		"stringKey":  "stringval",
 		"numberKey":  123,
