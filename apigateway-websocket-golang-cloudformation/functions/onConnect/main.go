@@ -7,8 +7,8 @@ import (
 )
 
 // This function will be triggered once the Websocket connect
-func function(request events.APIGatewayWebsocketProxyRequest) (events.APIGatewayProxyResponse, error) {
-	id := request.RequestContext.ConnectionID
+func function(event events.APIGatewayWebsocketProxyRequest) (events.APIGatewayProxyResponse, error) {
+	id := event.RequestContext.ConnectionID
 	fmt.Println("Connection id: ", id)
 	return events.APIGatewayProxyResponse{
 		StatusCode:        200,

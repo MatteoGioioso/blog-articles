@@ -22,11 +22,12 @@ var (
 	}))
 	apiGatewayId = os.Getenv("API_GATEWAY_ID")
 	environment  = os.Getenv("GO_ENV")
+	region       = os.Getenv("AWS_REGION")
 	api          = NewApiGatewayManagementApi()
 )
 
 func GetApiGatewayEndpoint(apiGatewayId string) string {
-	return fmt.Sprintf("%v.execute-api.ap-southeast-1.amazonaws.com/%v", apiGatewayId, environment)
+	return fmt.Sprintf("%v.execute-api.%v.amazonaws.com/%v", apiGatewayId, region, environment)
 }
 
 func NewApiGatewayManagementApi() *apigatewaymanagementapi.ApiGatewayManagementApi {
