@@ -65,7 +65,7 @@ export class WebsocketAPI {
 const myUrl = "wss://api-id.execute-api.region.amazonaws.com/stage"
 const client = new WebsocketAPI(myUrl, "123")
 client.webSocketOnOpen(() => {
-  console.log("connectedgi")
+  console.log("Connected!")
 })
 client.webSocketOnError((e) => {
   console.log(e.message)
