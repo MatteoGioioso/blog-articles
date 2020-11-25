@@ -1,6 +1,28 @@
 const net = require('net');
 
-const socket = new net.Socket({ readable: true, writable: true})
-socket.connect({host: "10.16.0.2", port: 80}, () => {
+const port = 9000;
+const host = "127.0.0.1"
 
+const socket = new net.Socket()
+socket.connect(port, host, (e) => {
+    console.log("EVENT: ", e)
+})
+
+socket.on("connect", (e) => {
+    console.log("CONNECTED")
+    const buff = Buffer.from("hello world", "utf-8")
+    socket.write(buff, (err) => {
+        console.log("ERROR?:", err)
+    })
+})
+
+socket.on("data", data => {
+    console.log("SOME DATA: ", data.toString())
+})
+
+socket.on("end", (e) => {
+    console.log("END: ", e)
+    socket.end(e => {
+        console.log("CONNECTION ENDED: ", e)
+    })
 })
