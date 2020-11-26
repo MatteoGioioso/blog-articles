@@ -17,17 +17,13 @@ function handleConnection(conn) {
     function onConnData(d) {
         console.log('connection data from %s: %j', remoteAddress, d.toString());
         const body = JSON.stringify({message: "Hello world"})
-        const http = `HTTP/1.1 200 OK
-Date: Mon, 27 Jul 2009 12:28:53 GMT
-Server: Apache/2.2.14 (Win32)
-Last-Modified: Wed, 22 Jul 2009 19:15:56 GMT
-Content-Length: ${body.length}
-Content-Type: text/html
-Connection: Closed
-
-${body}`
-        const buff = Buffer.from(http, "utf-8")
-        conn.write(buff);
+        conn.write("HTTP/1.1 200 OK\r\n");
+        conn.write(`Content-Length: ${body.length}\r\n`);
+        conn.write("Content-Type: application/json\r\n");
+        conn.write("Connection: Closed\r\n");
+        conn.write("\r\n");
+        conn.write(body + "\r\n");
+        conn.emit("end")
     }
 
     function onConnClose() {
