@@ -78,3 +78,62 @@ function lookupAndConnect(self, options) {
         });
     });
 }
+
+function internalConnect(
+    self, address, port, addressType, localAddress, localPort, flags) {
+    // TODO return promise from Socket.prototype.connect which
+    // wraps _connectReq.
+
+    assert(self.connecting);
+
+    let err;
+
+    if (localAddress || localPort) {
+        if (addressType === 4) {
+            localAddress = localAddress || DEFAULT_IPV4_ADDR;
+            err = self._handle.bind(localAddress, localPort);
+        }
+        debug('binding to localAddress: %s and localPort: %d (addressType: %d)',
+            localAddress, localPort, addressType);
+
+        err = checkBindError(err, localPort, self._handle);
+        if (err) {
+            const ex = exceptionWithHostPort(err, 'bind', localAddress, localPort);
+            self.destroy(ex);
+            return;
+        }
+    }
+
+    if (addressType === 6 || addressType === 4) {
+        const req = new TCPConnectWrap();
+        req.oncomplete = afterConnect;
+        req.address = address;
+        req.port = port;
+        req.localAddress = localAddress;
+        req.localPort = localPort;
+
+        if (addressType === 4)
+            err = self._handle.connect(req, address, port);
+        else
+            err = self._handle.connect6(req, address, port);
+    } else {
+        const req = new PipeConnectWrap();
+        req.address = address;
+        req.oncomplete = afterConnect;
+
+        err = self._handle.connect(req, address, afterConnect);
+    }
+
+    if (err) {
+        const sockname = self._getsockname();
+        let details;
+
+        if (sockname) {
+            details = sockname.address + ':' + sockname.port;
+        }
+
+        const ex = exceptionWithHostPort(err, 'connect', address, port, details);
+        self.destroy(ex);
+    }
+}
+

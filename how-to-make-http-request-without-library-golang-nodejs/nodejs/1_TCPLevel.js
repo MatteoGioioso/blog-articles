@@ -16,10 +16,9 @@ socket.on("connect", (e) => {
         console.log("ERROR?:", err)
     })
 
-    // const data;
-
     socket.on("data", chunk => {
-        parseHTTP(chunk)
+        const response = parseHTTP(chunk);
+        console.log(response)
     })
 
     socket.on("end", (e) => {
@@ -37,21 +36,28 @@ socket.on("connect", (e) => {
 // CRLF
 // [ message-body ]          ; Section 7.2
 function parseHTTP(buff) {
+    const response = {}
     const httpMessage = buff.toString().split("\r\n")
     const statusLine = httpMessage.shift();
     const statusLineComponents = statusLine.split(" ");
-    console.log(statusLineComponents)
-    for (const line of httpMessage) {
-        httpMessage.shift()
-        console.log(httpMessage)
-        console.log(line === "")
+    response.statusCode = statusLineComponents[1]
+
+    for (const _ of httpMessage) {
+        const line = httpMessage.shift();
+
+        // CRLF before the body
         if (line === ""){
-                break
+            break
         }
+        const headerKeyValue = line.split(" ")
+        const key = headerKeyValue[0].replace(":", "")
+        const value = headerKeyValue[1]
+        response[key] = value
     }
 
     const chunkSize = httpMessage.shift();
-    console.log(chunkSize)
+    response.size = parseInt(chunkSize, 16)
     const body = httpMessage.shift();
-    console.log(body)
+    response.body = JSON.parse(body)
+    return response
 }
