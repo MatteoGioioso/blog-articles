@@ -1,24 +1,63 @@
-const {
-    TCP,
-    TCPConnectWrap,
-    constants: TCPConstants
-    // To use this we need to have v10
-    // otherwise the new API is internalBinding
-    // which is not accessible in userland
-} = process.binding('tcp_wrap');
+const net = require('./bindingsUtils/socket')
 
-const handle = new TCP(TCPConstants.SOCKET)
-handle.onconnection = function (data) {
-    console.log("connected!", data)
+const port = 9000;
+const host = "127.0.0.1"
+
+const socket = new net.Socket()
+socket.connect(port, host, () => {
+    console.log("on connect")
+})
+
+socket.on("connect", () => {
+    console.log("CONNECTED")
+    const req = `GET / HTTP/1.1\r\nHost: localhost:9000\r\nConnection: close\r\n\r\n`
+    const buff = Buffer.from(req, "utf-8")
+    socket.write(buff, (err) => {
+        console.log("ERROR?:", err)
+    })
+
+    socket.on("data", chunk => {
+        const response = parseHTTP(chunk);
+        console.log(response)
+    })
+
+    socket.on("end", (e) => {
+        console.log("END: ", e)
+        socket.end(() => {
+            console.log("CONNECTION ENDED")
+        })
+    })
+})
+
+// HTTP-Version SP Status-Code SP Reason-Phrase CRL
+// *(( general-header        ; Section 4.5
+// | response-header        ; Section 6.2
+// | entity-header ) CRLF)  ; Section 7.1
+// CRLF
+// [ message-body ]          ; Section 7.2
+function parseHTTP(buff) {
+    const response = {}
+    const httpMessage = buff.toString().split("\r\n")
+    const statusLine = httpMessage.shift();
+    const statusLineComponents = statusLine.split(" ");
+    response.statusCode = statusLineComponents[1]
+
+    for (const _ of httpMessage) {
+        const line = httpMessage.shift();
+
+        // CRLF before the body
+        if (line === ""){
+            break
+        }
+        const headerKeyValue = line.split(" ")
+        const key = headerKeyValue[0].replace(":", "")
+        const value = headerKeyValue[1]
+        response[key] = value
+    }
+
+    const chunkSize = httpMessage.shift();
+    response.size = parseInt(chunkSize, 16)
+    const body = httpMessage.shift();
+    response.body = JSON.parse(body)
+    return response
 }
-
-// Add local address binding
-// https://docs.oracle.com/cd/E19455-01/806-1017/sockets-47146/index.html
-// https://stackoverflow.com/questions/39314086/what-does-it-mean-to-bind-a-socket-to-any-address-other-than-localhost/39314221
-const req = new TCPConnectWrap();
-req.address = "127.0.0.1";
-req.port = 9000;
-// req.localAddress = localAddress;
-// req.localPort = localPort;
-const err = handle.connect(req, "127.0.0.1", 9000)
-console.log(err)
