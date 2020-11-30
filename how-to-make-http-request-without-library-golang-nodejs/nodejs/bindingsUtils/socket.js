@@ -6,49 +6,28 @@ const {
     TCP,
     TCPConnectWrap,
     constants: TCPConstants
+    // This is a hack to access the bindings from outside nodejs
+    // THIS WILL ONLY WORK WITH NODE < v10.x
 } = process.binding('tcp_wrap');
-
-// called when creating new Socket, or when re-using a closed Socket
-function initSocketHandle(self) {
-    self._sockname = null;
-
-    // Handle creation may be deferred to bind() or connect() time.
-    if (self._handle) {
-        // Original API use a Symbol from the bindings
-        // for simplicity we use just a string
-        self._handle['owner_symbol'] = self;
-        self._handle.onread = onStreamRead;
-    }
-}
+const { WriteWrap } = process.binding('stream_wrap');
 
 function Socket() {
-    if (!(this instanceof Socket)) return new Socket();
-
     this._handle = null;
     stream.Duplex.call(this, {});
     // shut down the socket when we're finished with it.
     this.on('end', onReadableStreamEnd);
-
-    initSocketHandle(this);
 }
 util.inherits(Socket, stream.Duplex);
 
-
 Socket.prototype.end = function(data, encoding, callback) {
+    // This will end the stream
     stream.Duplex.prototype.end.call(this, data, encoding, callback);
     return this;
 };
 
-// Called when the 'end' event is emitted.
-function onReadableStreamEnd() {
-    console.log("Readable stream end")
-}
-
 // ============== READ ======================
 // Just call handle.readStart until we have enough in the buffer
 Socket.prototype._read = function(n) {
-    this._handle.reading = true;
-
     // Probably call int LibuvStreamWrap::ReadStart()
     const err = this._handle.readStart();
     if (err) {
@@ -57,20 +36,33 @@ Socket.prototype._read = function(n) {
 };
 
 function onStreamRead(nread, buf) {
-    const self = this['owner_symbol']
+    const self = this.self
     if (buf){
         self.emit('data', buf)
+    } else {
+        self.emit('end')
     }
+}
+
+// Called when the 'end' event is emitted.
+function onReadableStreamEnd() {
+    // This will close the socket
+    this._handle.close(() => {
+        this.emit('close');
+    });
 }
 
 // ============== WRITE =====================
 Socket.prototype.write = function(data, cb) {
-    const req = {}
+    // stream_wrap.cc
+    const req = new WriteWrap();
     req.handle = this._handle;
     req.oncomplete = afterWrite;
     req.async = false;
 
-    // Handle only utf8
+    // 3. WRITE to the socket
+    // writeBuffer is probably int StreamBase::WriteBuffer(const FunctionCallbackInfo<Value>& args)
+    // in stream_base.cc
     const err = req.handle.writeBuffer(req, data);
     if (err){
         throw new Error('Write error' + err.message)
@@ -82,25 +74,24 @@ function afterWrite(status, handle, err) {
     console.log("after write called")
 }
 
-
 // ============== CONNECTION ==========================
 
 Socket.prototype.connect = function(port, host, cb) {
+    // 1. INITIALIZE the TCP socket
+    // TCP and TCPConnectWrap are from tcp_wrap.cc
     this._handle = new TCP(TCPConstants.SOCKET);
-    initSocketHandle(this);
-
-    this.connecting = false;
-    this.writable = true;
+    this._handle.self = this;
+    this._handle.onread = onStreamRead;
 
     const req = new TCPConnectWrap();
     req.oncomplete = afterConnect;
     req.address = host;
     req.port = port;
 
+    // 2. CONNECT to the server
     const err = this._handle.connect(req, host, port);
-
     if (err) {
-        console.log(err)
+        throw new Error("connect error: " + err.message)
     }
 
     cb()
@@ -111,7 +102,8 @@ Socket.prototype.connect = function(port, host, cb) {
 
 function afterConnect(status, handle, req, readable, writable) {
     if (readable && writable){
-        const self = handle['owner_symbol'];
+        const self = handle.self;
+        // Emit the connect event
         self.emit('connect')
         self.emit('ready')
     } else {

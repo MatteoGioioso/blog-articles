@@ -4,28 +4,30 @@ const port = 9000;
 const host = "127.0.0.1"
 
 const socket = new net.Socket()
-socket.connect(port, host, () => {
-    console.log("on connect")
-})
+socket.connect(port, host, () => {})
 
 socket.on("connect", () => {
-    console.log("CONNECTED")
     const req = `GET / HTTP/1.1\r\nHost: localhost:9000\r\nConnection: close\r\n\r\n`
     const buff = Buffer.from(req, "utf-8")
     socket.write(buff, (err) => {
-        console.log("ERROR?:", err)
+        if (err) {
+            console.log("ERROR?:", err)
+        }
     })
 
     socket.on("data", chunk => {
         const response = parseHTTP(chunk);
-        console.log(response)
+        console.log(response.body)
     })
 
-    socket.on("end", (e) => {
-        console.log("END: ", e)
+    socket.on("end", () => {
         socket.end(() => {
-            console.log("CONNECTION ENDED")
+            console.log("CONNECTION Closed")
         })
+    })
+
+    socket.on('close', () => {
+        console.log('socket closed')
     })
 })
 
