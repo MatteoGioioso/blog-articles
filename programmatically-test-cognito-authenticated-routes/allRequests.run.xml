@@ -1,0 +1,20 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="allRequests" type="HttpClient.HttpRequestRunConfigurationType" factoryName="HTTP Request" path="$PROJECT_DIR$/programmatically-test-cognito-authenticated-routes/requests.http">
+    <method v="2">
+      <option name="NpmBeforeRunTask" enabled="true">
+        <package-json value="$PROJECT_DIR$/programmatically-test-cognito-authenticated-routes/package.json" />
+        <command value="run" />
+        <scripts>
+          <script value="run" />
+        </scripts>
+        <node-interpreter value="project" />
+        <envs>
+          <env name="TEST_USER_PASSWORD" value="my-secret-password" />
+          <env name="TEST_USER_EMAIL" value="email@example.com" />
+          <env name="COGNITO_USER_POOL_ID" value="us-east-1_00000000" />
+          <env name="COGNITO_CLIENT_ID" value="83h8e80190ei91je9" />
+        </envs>
+      </option>
+    </method>
+  </configuration>
+</component>

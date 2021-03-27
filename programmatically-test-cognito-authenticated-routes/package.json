@@ -1,0 +1,15 @@
+{
+  "name": "programmatically-test-cognito-authenticated-routes",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "run": "node index.js"
+  },
+  "keywords": [],
+  "author": "Matteo Gioioso",
+  "license": "MIT",
+  "dependencies": {
+    "amazon-cognito-identity-js": "^4.6.0",
+  }
+}

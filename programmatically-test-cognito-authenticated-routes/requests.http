@@ -1,0 +1,3 @@
+GET https://localhost/my/path
+Content-Type: application/json
+x-rebugit-Apikey: {{token}}
