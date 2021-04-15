@@ -1,1 +1,5 @@
 go/vendor
+nodejs/.clinic
+nodejs/node_modules
+nodejs/package-lock.json
+nodejs/*.0x

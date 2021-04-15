@@ -1,0 +1,18 @@
+<idea-plugin>
+    <id>com.github.myplugin</id>
+    <name>MyPlugin</name>
+    <vendor email="info@mycompany.com" url="mycompany.com">MyCompany</vendor>
+    <description><![CDATA[Description of my plugin]]></description>
+    <!-- Product and plugin compatibility requirements -->
+    <!-- https://plugins.jetbrains.com/docs/intellij/plugin-compatibility.html -->
+    <depends>com.intellij.modules.platform</depends>
+
+    <!-- If you need to reuse a template from another plugin you need to add to the dependencies -->
+    <depends>NodeJs</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <configurationType
+                implementation="com.myplugin.MyRunConfigurationType"
+        />
+    </extensions>
+</idea-plugin>

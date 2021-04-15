@@ -28,7 +28,6 @@ func read(fd int, res *[]byte)  {
 }
 
 func main() {
-
 	// domain: protocol family to be used in the communication. AF_INET: IPv4 family
 	// type: SOCK_STREAM is TCP socket
 	// proto: (Protocol) refers to a single protocol that supports the selected socket.
