@@ -10,7 +10,7 @@ import (
 
 // You need to pass the pool configuration to this method
 // In thi case I am using pgx
-func getTSLConfig(config *pgxpool.Config) error {
+func getTSLConfig() error {
 	// Get the certificate file
 	certPath := "/certs/rds-combined-ca-bundle.pem"
 	caCert, err := ioutil.ReadFile(certPath)
@@ -31,6 +31,7 @@ func getTSLConfig(config *pgxpool.Config) error {
 	tlsConfig.RootCAs = caCertPool
 
 	// Attach the tsl config to the pool
+	config, _ := pgxpool.ParseConfig("")
 	config.ConnConfig.TLSConfig = tlsConfig
 	return nil
 }
