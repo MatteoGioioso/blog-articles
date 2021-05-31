@@ -21,4 +21,9 @@ build {
     script = "user_data.sh"
     pause_before = "10s"
   }
+
+  provisioner "ansible" {
+    playbook_file = "playbook.yml"
+    pause_before = "10s"
+  }
 }
