@@ -26,4 +26,9 @@ build {
     playbook_file = "playbook.yml"
     pause_before = "10s"
   }
+
+  provisioner "shell" {
+    script = "post_install.sh"
+    pause_before = "10s"
+  }
 }
