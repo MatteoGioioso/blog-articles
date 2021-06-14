@@ -1,2 +1,3 @@
 .idea
 ecs-eks-anywhere/do-image/secrets.auto.pkrvars.hcl
+secret*

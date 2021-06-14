@@ -1,0 +1,4 @@
+do-infras/.terraform
+ecs-anywhere-install-latest.sh
+do-infras/ssm-activation.json
+do-infras/terraform.tfstate*
