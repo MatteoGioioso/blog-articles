@@ -16,6 +16,12 @@ resource "digitalocean_droplet" "ecs-1" {
     timeout = "2m"
   }
 
+  provisioner "remote-exec" {
+    inline = [
+      "mkdir ~/ecs-anywhere",
+    ]
+  }
+
   provisioner "file" {
     source      = "ssm-activation.json"
     destination = "~/ecs-anywhere/ssm-activation.json"
@@ -28,7 +34,7 @@ resource "digitalocean_droplet" "ecs-1" {
 
   provisioner "remote-exec" {
     inline = [
-      "cd ~/ecs-anywhere && ./user-data.sh",
+      "cd ~/ecs-anywhere && chmod +x user-data.sh && ./user-data.sh",
     ]
   }
 }

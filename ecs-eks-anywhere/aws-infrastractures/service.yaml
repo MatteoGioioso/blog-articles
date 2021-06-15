@@ -1,0 +1,29 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Deploy an ECS service
+
+Parameters:
+  ECSCluster:
+    Type: AWS::SSM::Parameter::Value<String>
+
+Resources:
+  ECSService:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster: !Ref ECSCluster
+      DesiredCount: 1
+      TaskDefinition: !Ref ECSTaskDefinition
+
+  ECSTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      ContainerDefinitions:
+        - Name: test-ecs-anywhere-task
+          Image: nginx
+          Cpu: 256
+          PortMappings:
+            - ContainerPort: 80
+              HostPort: 8080
+          Memory: 512
+          Environment:
+            - Name: NGINX_PORT
+              Value: "80"
