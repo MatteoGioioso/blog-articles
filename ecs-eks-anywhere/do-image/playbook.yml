@@ -67,7 +67,7 @@
         policy: deny
         direction: incoming
 
-    # Setup Docker
+    # The next steps are not really needed since the ecs-anywhere script will install it
     - name: Add Docker GPG apt Key
       apt_key:
         url: https://download.docker.com/linux/ubuntu/gpg

@@ -9,6 +9,7 @@ Resources:
   ECSService:
     Type: AWS::ECS::Service
     Properties:
+      LaunchType: EXTERNAL
       Cluster: !Ref ECSCluster
       DesiredCount: 1
       TaskDefinition: !Ref ECSTaskDefinition
