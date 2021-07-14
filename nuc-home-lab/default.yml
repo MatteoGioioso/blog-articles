@@ -1,0 +1,14 @@
+---
+create_user: madeo
+copy_local_key: "{{ lookup('file', lookup('env','HOME') + '/.ssh/id_rsa.pub') }}"
+sys_packages: [
+  'curl',
+  'ufw',
+  'apt-transport-https',
+  'software-properties-common',
+  'jq',
+  'qemu-kvm',
+  'libvirt-daemon-system',
+  'libvirt-clients',
+  'bridge-utils'
+]
