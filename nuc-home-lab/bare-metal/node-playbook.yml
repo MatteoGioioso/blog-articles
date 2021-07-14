@@ -1,6 +1,3 @@
-#################################################
-# DO Community Playbooks: Initial Server Setup
-#################################################
 ---
 - hosts: all
   become: true
